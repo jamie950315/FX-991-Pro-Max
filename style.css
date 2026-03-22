@@ -77,7 +77,7 @@ body {
     flex-direction: column;
     justify-content: space-between;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* Input expression — top-left, same font as output
@@ -92,9 +92,11 @@ body {
     word-break: break-all;
     font-weight: 700;
     font-family: 'Consolas', 'Courier New', monospace;
-    flex-shrink: 0;
-    min-height: 24px;
+    flex-shrink: 1;
+    min-height: 0;
 }
+/* Collapse input area when mode handlers leave it empty (Table, Equation, etc.) */
+.lcd-in:empty { display: none; }
 
 /* Result — bottom-right, slightly larger */
 .lcd-out {
@@ -111,6 +113,8 @@ body {
 }
 /* Clip KaTeX output that overflows (matches real Casio LCD behavior) */
 .lcd-out .katex { max-width: 100%; overflow-x: hidden; }
+/* Scale down font for tall matrix/vector bracket results to fit LCD */
+.lcd-out:has(.delimsizing.mult) { font-size: 16px; min-height: 0; }
 
 .lcd-out.error { color: #8b0000; }
 
@@ -202,8 +206,8 @@ body {
 .lcd-in .katex { text-align: left; }
 .lcd-out .katex { text-align: right; }
 
-/* Make KaTeX fraction lines match LCD dark color */
-.lcd .katex .frac-line { border-bottom-color: #1a1a1a; }
+/* Make KaTeX fraction lines match LCD dark color + fallback if CDN CSS fails */
+.lcd .katex .frac-line { border-bottom-color: #1a1a1a; border-bottom-style: solid; }
 .lcd .katex .sqrt-sign { color: #1a1a1a; }
 .lcd .katex .vlist-t { color: #1a1a1a; }
 

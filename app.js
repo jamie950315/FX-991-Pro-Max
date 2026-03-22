@@ -1588,7 +1588,6 @@ class CasioFX991EX {
         }
 
         // Newton's method: solve f(x) = LHS - RHS = 0
-        let x = this.solveVarValues[target] || 0;
         const h = 1e-8;
 
         const f = (xVal) => {
@@ -1599,19 +1598,43 @@ class CasioFX991EX {
             return lhs.value - rhs.value;
         };
 
-        // Newton iterations
-        for (let i = 0; i < 200; i++) {
-            const fx = f(x);
-            if (isNaN(fx)) break;
-            if (Math.abs(fx) < 1e-14) break;
+        const newton = (x0) => {
+            let x = x0;
+            for (let i = 0; i < 200; i++) {
+                const fx = f(x);
+                if (!Number.isFinite(fx)) break;
+                if (Math.abs(fx) < 1e-14) break;
+                const fxh = f(x + h);
+                if (!Number.isFinite(fxh)) break;
+                const dfx = (fxh - fx) / h;
+                if (!Number.isFinite(dfx) || Math.abs(dfx) < 1e-20) break;
+                const dx = fx / dfx;
+                if (!Number.isFinite(dx)) break;
+                // Dampen large steps to prevent divergence
+                const maxStep = Math.max(100, Math.abs(x) * 10);
+                const clampedDx = Math.abs(dx) > maxStep ? Math.sign(dx) * maxStep : dx;
+                x -= clampedDx;
+                if (Math.abs(dx) < 1e-14 * Math.max(1, Math.abs(x))) break;
+            }
+            return x;
+        };
 
-            const fxh = f(x + h);
-            const dfx = (fxh - fx) / h;
-            if (Math.abs(dfx) < 1e-20) break;
-
-            const dx = fx / dfx;
-            x -= dx;
-            if (Math.abs(dx) < 1e-14 * Math.max(1, Math.abs(x))) break;
+        // Try from user's initial guess first, then fallback starting points
+        const x0 = this.solveVarValues[target] || 0;
+        let x = newton(x0);
+        let bestLR = Math.abs(f(x));
+        // If result is poor, try alternative starting points
+        if (bestLR > 1e-6) {
+            for (const alt of [1, -1, 0.5, -0.5, 2, -2, 5, -5, 10, -10]) {
+                if (alt === x0) continue;
+                const candidate = newton(alt);
+                const candidateLR = Math.abs(f(candidate));
+                if (candidateLR < bestLR) {
+                    x = candidate;
+                    bestLR = candidateLR;
+                    if (bestLR < 1e-14) break;
+                }
+            }
         }
 
         // Polish solution: snap to clean integer/fraction if extremely close
@@ -2500,16 +2523,26 @@ class CasioFX991EX {
                     break;
                 case '/': {
                     // Fraction: / is always from the fraction key in MathI mode
-                    // Always render as \frac{}{} — collect digits before (numerator) and after (denominator)
+                    // Collect numerator (digits, π, cursor) from latex and denominator from source
                     let numEnd = latex.length;
                     let numStart = numEnd;
                     while (numStart > 0 && (/\d/.test(latex[numStart - 1]) || latex[numStart - 1] === CURSOR)) {
                         numStart--;
                     }
+                    // Also absorb preceding \pi (rendered from π)
+                    if (numStart >= 4 && latex.substring(numStart - 4, numStart) === '\\pi ') {
+                        numStart -= 4;
+                        // And digits before \pi (e.g. 3π/4)
+                        while (numStart > 0 && (/\d/.test(latex[numStart - 1]) || latex[numStart - 1] === CURSOR)) {
+                            numStart--;
+                        }
+                    }
+                    // Denominator: collect digits and π from source string
                     let denStr = '';
                     let j = i + 1;
-                    while (j < s.length && (/\d/.test(s[j]) || s[j] === CURSOR)) {
-                        denStr += s[j]; j++;
+                    while (j < s.length && (/\d/.test(s[j]) || s[j] === 'π' || s[j] === CURSOR)) {
+                        denStr += s[j] === 'π' ? '\\pi ' : s[j];
+                        j++;
                     }
                     const hasNum = numStart < numEnd;
                     const num = hasNum ? latex.substring(numStart, numEnd) : '';
@@ -2708,6 +2741,30 @@ class CasioFX991EX {
     powerOn() {
         this.powered = true;
         document.querySelector('.calculator').classList.remove('off');
+        // Full reset: clear all state back to defaults
+        this.engine.mode = 'Calculate';
+        this.engine.angleUnit = 'DEG';
+        this.engine.fractionResult = 'd/c';
+        this.engine.inputOutput = 'MathI/MathO';
+        this.engine.numberFormat = { type: 'Norm', value: 1 };
+        this.engine.engineerSymbol = false;
+        this.engine.statFrequency = false;
+        this.engine.tableUseGx = false;
+        this.engine.ans = 0;
+        this.engine.memory = 0;
+        this.engine.variables = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, x: 0, y: 0 };
+        this.engine.history = [];
+        this.modeHandler = null;
+        this.menuOpen = false;
+        this.menuType = null;
+        this.menuItems = [];
+        this.shiftActive = false;
+        this.alphaActive = false;
+        this.solvePhase = null;
+        this.showingResult = false;
+        this.justEvaluated = false;
+        this.historyIndex = -1;
+        this.closeMenu();
         this.clearAll();
         this.updateIndicators();
     }
@@ -2782,7 +2839,7 @@ document.addEventListener('DOMContentLoaded', () => {
             () => { enterMode('1'); calc.clearAll(); type('7/8+3/11'); press('equals'); },
             () => { enterMode('1'); calc.clearAll(); type('3/4'); press('equals'); press('sd'); }, // S⇔D decimal
             () => { enterMode('1'); calc.clearAll(); type('7/3'); press('equals'); }, // improper fraction
-            () => { enterMode('1'); calc.clearAll(); calc.toggleFractionType(); }, // mixed fraction 2⅓
+            () => { enterMode('1'); calc.clearAll(); type('7/3'); press('equals'); calc.toggleFractionType(); }, // mixed fraction 2⅓
             () => { enterMode('1'); calc.clearAll(); calc.inputFunc('√('); type('24'); press('right'); type('+'); calc.inputFunc('√('); type('150'); press('right'); press('equals'); },
             () => { enterMode('1'); calc.clearAll(); calc.inputFunc('√('); type('2'); press('right'); press('equals'); }, // √2
             () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='RAD'; calc.inputFunc('sin('); type('π/4)'); press('equals'); },
@@ -2847,11 +2904,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // === SOLVE MODE (50) ===
             () => { enterMode('1'); calc.clearAll(); type('x²−4'); calc.openSolve(); calc.solveEditBuffer='1'; calc.saveCurrentSolveVar(); calc.executeSolve(); },
+
+            // === CALCULATE MODE EXTENDED (51-65) ===
+            () => { enterMode('1'); calc.clearAll(); type('1÷3+1÷6'); press('equals'); }, // 1/2
+            () => { enterMode('1'); calc.clearAll(); type('2'); calc.inputChar('^('); type('10)'); press('equals'); }, // 1024
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='DEG'; calc.inputFunc('tan('); type('45)'); press('equals'); }, // 1
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('log('); type('100)'); press('equals'); }, // 2
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('ln('); type('1)'); press('equals'); }, // 0
+            () => { enterMode('1'); calc.clearAll(); type('3'); calc.inputChar('²'); type('×4'); calc.inputChar('²'); press('equals'); }, // 144
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('Abs('); type('−5)'); press('equals'); }, // 5
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('√('); type('9)'); type('+'); calc.inputFunc('√('); type('16)'); press('equals'); }, // 7
+            () => { enterMode('1'); calc.clearAll(); type('2/5+3/10'); press('equals'); }, // 7/10
+            () => { enterMode('1'); calc.clearAll(); type('100÷7'); press('equals'); }, // 100/7 fraction
+            () => { enterMode('1'); calc.clearAll(); type('(2+3)×(4−1)'); press('equals'); }, // 15
+            () => { enterMode('1'); calc.clearAll(); type('2'); calc.inputChar('^('); type('0.5)'); press('equals'); }, // √2
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='RAD'; calc.inputFunc('sin('); type('π/6)'); press('equals'); }, // 1/2
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='DEG'; calc.inputFunc('tan⁻¹('); type('1)'); press('equals'); }, // 45
+            () => { enterMode('1'); calc.clearAll(); type('1/2+1/3+1/6'); press('equals'); }, // 1
+
+            // === COMPLEX MODE EXTENDED (66-72) ===
+            () => { enterMode('2'); calc.clearAll(); type('(2+3𝒊)+(4−5𝒊)'); press('equals'); }, // 6-2i
+            () => { enterMode('2'); calc.clearAll(); type('(1+𝒊)÷(1−𝒊)'); press('equals'); }, // i
+            () => { enterMode('2'); calc.clearAll(); calc.inputFunc('Conjg('); type('3+4𝒊)'); press('equals'); }, // 3-4i
+            () => { enterMode('2'); calc.clearAll(); calc.inputFunc('ReP('); type('5−2𝒊)'); press('equals'); }, // 5
+            () => { enterMode('2'); calc.clearAll(); calc.inputFunc('ImP('); type('5−2𝒊)'); press('equals'); }, // -2
+            () => { enterMode('2'); calc.clearAll(); calc.inputFunc('Abs('); type('3+4𝒊)'); press('equals'); }, // 5
+            () => { enterMode('2'); calc.clearAll(); type('𝒊'); calc.inputChar('²'); press('equals'); }, // -1
+
+            // === MATRIX MODE EXTENDED (73-77) ===
+            () => { defineMatrices(); const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputChar('MatA'); type('×'); calc.inputChar('MatB'); press('equals'); }, // matrix multiply
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputFunc('Det('); calc.inputChar('MatB'); type(')'); press('equals'); }, // Det(MatB)
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputChar('MatA'); type('+'); calc.inputChar('MatA'); press('equals'); }, // 2*MatA
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputChar('MatB'); calc.inputChar('⁻¹'); press('equals'); }, // MatB inverse
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputFunc('Trn('); calc.inputChar('MatB'); type(')'); press('equals'); }, // Trn(MatB)
+
+            // === VECTOR MODE EXTENDED (78-82) ===
+            () => { defineVectors(); const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputChar('VctA'); type('+'); calc.inputChar('VctB'); press('equals'); }, // vector add
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; type('2'); type('×'); calc.inputChar('VctA'); press('equals'); }, // scalar mul
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; type('−1'); type('×'); calc.inputChar('VctB'); press('equals'); }, // negate
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputFunc('UnitV('); calc.inputChar('VctB'); type(')'); press('equals'); }, // UnitV(VctB)
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputChar('VctB'); type('×'); calc.inputChar('VctA'); press('equals'); }, // cross B×A (opposite sign)
+
+            // === STATISTICS MODE EXTENDED (83-86) ===
+            () => { calc.engine.mode='Statistics'; calc.closeMenu(); calc.clearAll(); calc.modeHandler=new StatisticsMode(calc); calc.modeHandler.enter(); const s=calc.modeHandler; s.isPaired=true; s.columns=['x','y']; s.data=[]; s.phase='editor'; [[1,2],[2,4],[3,5],[4,4],[5,7]].forEach(p=>{s.editBuffer=p[0].toString();s.handleEditorKey('equals');s.editBuffer=p[1].toString();s.handleEditorKey('equals');}); s.showStatResults(); }, // 2-var stats
+            () => { const s=calc.modeHandler; s.handleStatResultKey('down'); }, // page 2
+            () => { const s=calc.modeHandler; s.handleStatResultKey('down'); }, // page 3
+            () => { const s=calc.modeHandler; s.handleStatResultKey('down'); }, // page 4 (regression)
+
+            // === DISTRIBUTION MODE EXTENDED (87-89) ===
+            () => { enterMode('7'); press('2'); press('2'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='0.5';d.handleKey('equals');d.editBuffer='0';d.handleKey('equals');d.editBuffer='1';d.handleKey('equals');} }, // NormalCD
+            () => { enterMode('7'); press('4'); press('2'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='0.5';d.handleKey('equals');d.editBuffer='7';d.handleKey('equals');} }, // PoissonPD
+            () => { enterMode('7'); press('6'); press('2'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='3';d.handleKey('equals');d.editBuffer='5';d.handleKey('equals');d.editBuffer='10';d.handleKey('equals');} }, // BinomialPD
+
+            // === TABLE MODE EXTENDED (90-92) ===
+            () => { enterMode('9'); const t=calc.modeHandler; t.editBuffer='x²−4'; t.handleKey('equals'); t.editBuffer='-3';t.handleKey('equals'); t.editBuffer='3';t.handleKey('equals'); t.editBuffer='1';t.handleKey('equals'); }, // x²-4 from -3 to 3
+            () => { const t=calc.modeHandler; t.handleKey('down');t.handleKey('down');t.handleKey('down'); }, // scroll
+            () => { const t=calc.modeHandler; t.handleKey('up');t.handleKey('up'); }, // scroll back
+
+            // === EQUATION MODE EXTENDED (93-96) ===
+            () => { enterEq('1','2'); const e=calc.modeHandler; [1,1,1,6,2,-1,1,1,1,2,-1,2].forEach(v=>{e.editBuffer=v.toString();e.handleKey('equals');}); }, // 3-var simultaneous
+            () => { const e=calc.modeHandler; if(e.solutions&&e.solutions.length>1) e.handleKey('down'); }, // y
+            () => { const e=calc.modeHandler; if(e.solutions&&e.solutions.length>1) e.handleKey('down'); }, // z
+            () => { enterEq('2','1'); const e=calc.modeHandler; [1,-4,4].forEach(v=>{e.editBuffer=v.toString();e.handleKey('equals');}); }, // x²-4x+4=0, double root x=2
+
+            // === INEQUALITY MODE EXTENDED (97-98) ===
+            () => { enterIneq(); press('2'); press('1'); const q=calc.modeHandler; [1,0,-9,0].forEach(v=>{q.editBuffer=v.toString();q.handleKey('equals');}); }, // x³-9x>0
+            () => { enterIneq(); press('1'); press('2'); const q=calc.modeHandler; [1,0,-4].forEach(v=>{q.editBuffer=v.toString();q.handleKey('equals');}); }, // x²-4<0 → -2<x<2
+
+            // === SOLVE MODE EXTENDED (99-100) ===
+            () => { enterMode('1'); calc.clearAll(); type('2x+5'); calc.openSolve(); calc.solveEditBuffer='0'; calc.saveCurrentSolveVar(); calc.executeSolve(); }, // x=-2.5
+            () => { enterMode('1'); calc.clearAll(); type('x²−9'); calc.openSolve(); calc.solveEditBuffer='4'; calc.saveCurrentSolveVar(); calc.executeSolve(); }, // x=3
         ];
 
         debugBtn.addEventListener('click', () => {
             testIdx++;
-            if (testIdx >= tests.length) testIdx = 0;
+            if (testIdx >= tests.length) {
+                testIdx = 0;
+                matDefined = false;
+                vctDefined = false;
+                // Full reset on cycle wrap only
+                calc.solvePhase = null;
+                calc.menuOpen = false;
+                calc.closeMenu();
+                calc.engine.mode = 'Calculate';
+                calc.engine.angleUnit = 'DEG';
+                calc.engine.fractionResult = 'd/c';
+                calc.modeHandler = null;
+                calc.showingResult = false;
+                calc.clearAll();
+            }
+            // Light reset before every test: clear transient state without breaking sequential mode tests
+            calc.solvePhase = null;
+            if (calc.menuOpen) { calc.menuOpen = false; calc.closeMenu(); }
+            // Clear Inequality/Equation mode handlers stuck in 'solutions' phase (they intercept ALL keys including menu)
+            if (calc.modeHandler && calc.modeHandler.phase === 'solutions') {
+                calc.modeHandler = null;
+            }
+
             const n = testIdx + 1;
             showLabel(n);
             try {

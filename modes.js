@@ -758,10 +758,10 @@ class MatrixMode extends ModeHandler {
         const name = `Mat${this.editingMatrix}`;
         if (type === 'rows') {
             this.app.displayInputEl.innerHTML = `<div style="font-size:11px;font-family:monospace;font-weight:700;">${name}<br>Number of Rows?</div>`;
-            this.app.displayResultEl.innerHTML = `<div style="font-size:12px;font-family:monospace;text-align:left;padding-top:4px;">Select 1~4</div>`;
+            this.app.displayResultEl.innerHTML = `<div style="font-size:15px;font-family:monospace;text-align:left;padding-top:4px;">Select 1~4</div>`;
         } else {
             this.app.displayInputEl.innerHTML = `<div style="font-size:11px;font-family:monospace;font-weight:700;">${name}<br>Number of<br>&nbsp;&nbsp;&nbsp;&nbsp;Columns?</div>`;
-            this.app.displayResultEl.innerHTML = `<div style="font-size:12px;font-family:monospace;text-align:left;padding-top:4px;">Select 1~4</div>`;
+            this.app.displayResultEl.innerHTML = `<div style="font-size:15px;font-family:monospace;text-align:left;padding-top:4px;">Select 1~4</div>`;
         }
     }
     renderDefineSelectMenu() {
@@ -796,7 +796,7 @@ class MatrixMode extends ModeHandler {
         html += '</div>';
         // Edit buffer shown bottom-right
         if (this.editBuffer !== '') {
-            html += `<div style="text-align:right;font-size:12px;font-weight:700;padding-top:1px;">${this.editBuffer}</div>`;
+            html += `<div style="text-align:right;font-size:15px;font-weight:700;padding-top:1px;">${this.editBuffer}</div>`;
         }
         html += '</div>';
         this.app.displayResultEl.innerHTML = html;
@@ -1131,7 +1131,7 @@ class VectorMode extends ModeHandler {
             }
             this.phase = 'define-dim';
             this.app.displayInputEl.innerHTML = `<div style="font-size:11px;font-family:monospace;font-weight:700;">Vct${this.editingVector}<br>Dimension?</div>`;
-            this.app.displayResultEl.innerHTML = '<div style="font-size:12px;font-family:monospace;padding-top:4px;">Select 2~3</div>';
+            this.app.displayResultEl.innerHTML = '<div style="font-size:15px;font-family:monospace;padding-top:4px;">Select 2~3</div>';
             return true;
         }
         if (key === 'ac') { this.phase = 'calc'; this.app.clearAll(); return true; }
@@ -1231,7 +1231,7 @@ class VectorMode extends ModeHandler {
         html += '<div style="font-size:1.4em;line-height:1;display:flex;align-items:center;padding-left:1px;">]</div>';
         html += '</div>';
         if (this.editBuffer !== '') {
-            html += `<div style="text-align:right;font-size:12px;font-weight:700;padding-top:1px;">${this.editBuffer}</div>`;
+            html += `<div style="text-align:right;font-size:15px;font-weight:700;padding-top:1px;">${this.editBuffer}</div>`;
         }
         html += '</div>';
         this.app.displayResultEl.innerHTML = html;
@@ -1630,7 +1630,7 @@ class StatisticsMode extends ModeHandler {
             this.calculateStats();
             this.app.clearAll();
             this.app.displayResultEl.innerHTML =
-                '<div style="font-size:12px;font-family:monospace;text-align:right;padding-top:8px;">Statistics<br>' +
+                '<div style="font-size:15px;font-family:monospace;text-align:right;padding-top:8px;">Statistics<br>' +
                 (this.isPaired ? '2-Variable' : '1-Variable') + '</div>';
             return true;
         }
@@ -1641,7 +1641,7 @@ class StatisticsMode extends ModeHandler {
         if (this.isPaired) cols.push('y');
         if (this.showFreq) cols.push('Freq');
         this.app.displayInputEl.textContent = '';
-        let html = '<div style="font-size:8px;font-family:monospace;line-height:1.3;">';
+        let html = '<div style="font-size:15px;font-family:monospace;line-height:1.3;">';
         html += '<table style="border-collapse:collapse;width:100%;">';
         html += '<tr><td style="padding:0 1px;border-bottom:1px solid #1a1a1a;"></td>';
         for (const col of cols) {
@@ -1758,7 +1758,7 @@ class StatisticsMode extends ModeHandler {
         const start = this.resultScrollPos;
         const end = Math.min(lines.length, start + 6);
         this.app.displayInputEl.textContent = '';
-        let html = '<div style="font-size:8px;font-family:monospace;line-height:1.3;text-align:left;">';
+        let html = '<div style="font-size:15px;font-family:monospace;line-height:1.3;text-align:left;">';
         for (let i = start; i < end; i++) {
             const { label, value } = lines[i];
             html += '<div>' + label + '<span style="float:right;">=' + this.engine.formatResult(value) + '</span></div>';
@@ -1877,7 +1877,7 @@ class StatisticsMode extends ModeHandler {
                     this.calculateStats();
                     this.app.clearAll();
                     this.app.displayResultEl.innerHTML =
-                        '<div style="font-size:12px;font-family:monospace;text-align:right;padding-top:8px;">Statistics<br>1-Variable</div>';
+                        '<div style="font-size:15px;font-family:monospace;text-align:right;padding-top:8px;">Statistics<br>1-Variable</div>';
                 }
                 break;
         }
@@ -2145,7 +2145,7 @@ class DistributionMode extends ModeHandler {
     renderListEditor() {
         const typeName = this.getDistTypeName();
         this.app.displayInputEl.textContent = '';
-        let html = '<div style="font-size:8px;font-family:monospace;line-height:1.3;display:flex;">';
+        let html = '<div style="font-size:15px;font-family:monospace;line-height:1.3;display:flex;">';
         // Table
         html += '<div style="flex:1;">';
         html += '<table style="border-collapse:collapse;width:100%;">';
@@ -2690,7 +2690,7 @@ class SpreadsheetMode extends ModeHandler {
             html += '</tr>';
         }
         html += '</table>';
-        html += '<div style="border-top:1px solid rgba(0,0,0,0.2);font-size:8px;padding:1px 2px;min-height:10px;">' + editText + '</div>';
+        html += '<div style="border-top:1px solid rgba(0,0,0,0.2);font-size:15px;padding:1px 2px;min-height:10px;">' + editText + '</div>';
         html += '</div>';
         this.app.displayResultEl.innerHTML = html;
         this.app.displayResultEl.style.textAlign = 'left';
@@ -3273,7 +3273,7 @@ class EquationMode extends ModeHandler {
             header += '=_';
             this.app.displayInputEl.textContent = '';
 
-            let html = '<div style="font-size:8px;font-family:monospace;line-height:1.25;text-align:left;">';
+            let html = '<div style="font-size:15px;font-family:monospace;line-height:1.25;text-align:left;">';
             // Show rows as equations with curly brace
             html += '<div style="display:flex;">';
             html += `<div style="font-size:${n * 8}px;line-height:1;margin-right:2px;">{</div>`;
@@ -3442,8 +3442,8 @@ class EquationMode extends ModeHandler {
             const labelStr = (this.solutions.length > 1 ? 'x' + (this.solutionIndex + 1) : 'x') + '=';
             // Header on first line, label on second line
             this.app.displayInputEl.innerHTML =
-                '<div style="font-size:8px;font-family:monospace;">' + header + '</div>' +
-                '<div style="font-size:12px;font-weight:700;">' + labelStr + '</div>';
+                '<div style="font-size:15px;font-family:monospace;">' + header + '</div>' +
+                '<div style="font-size:15px;font-weight:700;">' + labelStr + '</div>';
             if (Math.abs(sol.im) < 1e-12) {
                 const valStr = this.engine.formatResult(sol.re);
                 if (useKatex) {
@@ -3607,7 +3607,7 @@ class InequalityMode extends ModeHandler {
             expLabels.push(exp > 1 ? 'x' + (exp === 2 ? '²' : (exp === 3 ? '³' : '⁴')) + '+' :
                           (exp === 1 ? 'x' : ''));
         }
-        let html = '<div style="font-size:8px;font-family:monospace;line-height:1.25;text-align:left;">';
+        let html = '<div style="font-size:15px;font-family:monospace;line-height:1.25;text-align:left;">';
         html += '<div style="white-space:nowrap;">';
         for (let i = 0; i <= n; i++) {
             const isCurrent = i === this.editIndex;
