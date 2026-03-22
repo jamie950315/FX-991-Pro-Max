@@ -512,7 +512,10 @@ class CasioFX991EX {
 
         // Expression stays in INPUT area (top-left), render with math formatting
         const isMath = this.engine.inputOutput.startsWith('MathI');
-        if (isMath) {
+        if (isMath && typeof katex !== 'undefined') {
+            const inputLatex = this.exprToLatex(this.formatInputDisplay(expression));
+            this.renderKatex(this.displayInputEl, inputLatex);
+        } else if (isMath) {
             this.displayInputEl.innerHTML = this.formatMathDisplay(this.formatInputDisplay(expression));
         } else {
             this.displayInputEl.textContent = this.formatInputDisplay(expression);
@@ -551,7 +554,17 @@ class CasioFX991EX {
                 }
             }
         }
-        if (isMath) {
+        // Store result string and mode info in history for later navigation
+        this.lastResultStr = resultStr;
+        if (this.engine.history.length > 0) {
+            const lastEntry = this.engine.history[this.engine.history.length - 1];
+            lastEntry.displayStr = resultStr;
+            lastEntry.ioMode = this.engine.inputOutput;
+        }
+
+        if (isMath && typeof katex !== 'undefined') {
+            this.renderKatex(this.displayResultEl, this.resultToLatex(resultStr));
+        } else if (isMath) {
             this.displayResultEl.innerHTML = this.formatMathDisplay(resultStr);
         } else {
             this.displayResultEl.textContent = resultStr;
@@ -566,11 +579,14 @@ class CasioFX991EX {
     calculateApprox() {
         // SHIFT + = : show decimal approximation
         if (!this.input && !this.showingResult) return;
+        const isMath = this.engine.inputOutput.startsWith('MathI');
+        const useKatex = isMath && typeof katex !== 'undefined';
 
         if (this.showingResult) {
             // Convert current result to decimal
             const val = this.engine.ans;
-            this.displayResultEl.textContent = this.engine.formatResult(val);
+            this.renderResultDisplay(this.displayResultEl, this.engine.formatResult(val), isMath);
+            this.resultDisplayMode = 'decimal';
             return;
         }
 
@@ -584,8 +600,12 @@ class CasioFX991EX {
         }
 
         this.displayResultEl.classList.remove('error');
-        this.displayInputEl.textContent = this.formatInputDisplay(this.input);
-        this.displayResultEl.textContent = result.display;
+        if (useKatex) {
+            this.renderKatex(this.displayInputEl, this.exprToLatex(this.formatInputDisplay(this.input)));
+        } else {
+            this.displayInputEl.textContent = this.formatInputDisplay(this.input);
+        }
+        this.renderResultDisplay(this.displayResultEl, result.display, isMath);
         this.showingResult = true;
         this.justEvaluated = true;
     }
@@ -599,7 +619,7 @@ class CasioFX991EX {
 
         if (this.resultDisplayMode === 'exact') {
             // Switch to decimal
-            this.displayResultEl.textContent = this.engine.formatResult(val);
+            this.renderResultDisplay(this.displayResultEl, this.engine.formatResult(val), isMath);
             this.resultDisplayMode = 'decimal';
         } else {
             // Switch back to exact form
@@ -629,11 +649,8 @@ class CasioFX991EX {
             }
 
             if (exactStr) {
-                if (isMath) {
-                    this.displayResultEl.innerHTML = this.formatMathDisplay(exactStr);
-                } else {
-                    this.displayResultEl.textContent = exactStr;
-                }
+                this.lastResultStr = exactStr;
+                this.renderResultDisplay(this.displayResultEl, exactStr, isMath);
                 this.resultDisplayMode = 'exact';
             }
         }
@@ -908,11 +925,7 @@ class CasioFX991EX {
             }
             const entry = this.engine.history[this.engine.historyIndex];
             if (entry) {
-                this.displayInputEl.textContent = this.formatInputDisplay(entry.expression);
-                this.displayResultEl.textContent = this.engine.formatResult(entry.result);
-                this.input = entry.expression;
-                this.showingResult = true;
-                this.justEvaluated = true;
+                this.renderHistoryEntry(entry);
             }
         }
     }
@@ -930,13 +943,67 @@ class CasioFX991EX {
             this.engine.historyIndex++;
             const entry = this.engine.history[this.engine.historyIndex];
             if (entry) {
-                this.displayInputEl.textContent = this.formatInputDisplay(entry.expression);
-                this.displayResultEl.textContent = this.engine.formatResult(entry.result);
-                this.input = entry.expression;
-                this.showingResult = true;
-                this.justEvaluated = true;
+                this.renderHistoryEntry(entry);
             }
         }
+    }
+
+    // Render a history entry with KaTeX support
+    renderHistoryEntry(entry) {
+        // Use stored ioMode from when entry was computed, fall back to current mode
+        const entryMode = entry.ioMode || this.engine.inputOutput;
+        const isMath = entryMode.startsWith('MathI');
+        const useKatex = isMath && typeof katex !== 'undefined';
+
+        // Render expression
+        if (useKatex) {
+            this.renderKatex(this.displayInputEl, this.exprToLatex(this.formatInputDisplay(entry.expression)));
+        } else if (isMath) {
+            this.displayInputEl.innerHTML = this.formatMathDisplay(this.escapeHtml(this.formatInputDisplay(entry.expression)));
+        } else {
+            this.displayInputEl.textContent = this.formatInputDisplay(entry.expression);
+        }
+
+        // Render result — use stored exact form if available, else compute fresh
+        let resultDisplay = entry.displayStr;
+        if (!resultDisplay) {
+            // Re-compute exact form for older history entries
+            const val = entry.result;
+            if (entryMode === 'MathI/MathO') {
+                const sqrtRep = this.trySquareRoot(val);
+                if (sqrtRep) { resultDisplay = sqrtRep; }
+                else {
+                    const piRep = this.tryPiForm(val);
+                    if (piRep) { resultDisplay = piRep; }
+                    else {
+                        const frac = this.engine.toFraction(val);
+                        if (frac && frac.den !== 1 && frac.den <= 9999) {
+                            if (this.engine.fractionResult === 'ab/c' && frac.whole !== 0) {
+                                resultDisplay = `${frac.whole} ${Math.abs(frac.num)}/${frac.den}`;
+                            } else {
+                                const totalNum = frac.whole * frac.den + frac.num;
+                                resultDisplay = `${totalNum}/${frac.den}`;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!resultDisplay) resultDisplay = this.engine.formatResult(entry.result);
+        }
+
+        if (useKatex) {
+            this.renderKatex(this.displayResultEl, this.resultToLatex(resultDisplay));
+        } else if (isMath) {
+            this.displayResultEl.innerHTML = this.formatMathDisplay(resultDisplay);
+        } else {
+            this.displayResultEl.textContent = resultDisplay;
+        }
+
+        this.input = entry.expression;
+        this.displayInput = entry.expression;
+        this.cursorPos = entry.expression.length;
+        this.showingResult = true;
+        this.justEvaluated = true;
     }
 
     handleLeft() {
@@ -993,6 +1060,27 @@ class CasioFX991EX {
                 }
             }
             if (!moved) this.cursorPos++;
+            this.updateDisplay();
+        } else {
+            // Cursor at end — auto-close one unclosed bracket if any exist
+            this.autoCloseOneBracket();
+        }
+    }
+
+    // Auto-close one unclosed function bracket at cursor (for → key at end of expression)
+    // Mimics real Casio behavior: pressing → exits the current function scope
+    autoCloseOneBracket() {
+        const expr = this.input.substring(0, this.cursorPos);
+        let openCount = 0;
+        for (let i = 0; i < expr.length; i++) {
+            if (expr[i] === '(') openCount++;
+            else if (expr[i] === ')') openCount--;
+        }
+        if (openCount > 0) {
+            // Insert one closing bracket at cursor
+            this.input = this.input.substring(0, this.cursorPos) + ')' + this.input.substring(this.cursorPos);
+            this.displayInput = this.displayInput.substring(0, this.cursorPos) + ')' + this.displayInput.substring(this.cursorPos);
+            this.cursorPos++;
             this.updateDisplay();
         }
     }
@@ -1235,8 +1323,11 @@ class CasioFX991EX {
 
     renderCalcScreen() {
         const isMath = this.engine.inputOutput.startsWith('MathI');
+        const useKatex = isMath && typeof katex !== 'undefined';
         // Show expression at top
-        if (isMath) {
+        if (useKatex) {
+            this.renderKatex(this.displayInputEl, this.exprToLatex(this.calcExpression));
+        } else if (isMath) {
             this.displayInputEl.innerHTML = this.formatMathDisplay(this.escapeHtml(this.calcExpression));
         } else {
             this.displayInputEl.textContent = this.calcExpression;
@@ -1244,7 +1335,12 @@ class CasioFX991EX {
         // Show current variable input
         const v = this.calcVars[this.calcVarIndex];
         const val = this.calcEditBuffer !== '' ? this.calcEditBuffer : this.engine.formatResult(this.calcVarValues[v]);
-        this.displayResultEl.innerHTML = `<div style="font-size:0.85em;text-align:left;">${v} = ${val}<span class="lcd-cursor"></span></div>`;
+        if (useKatex) {
+            const varLatex = v + ' = ' + val;
+            this.renderKatex(this.displayResultEl, varLatex + '\\htmlClass{katex-cursor}{\\rule[-0.2em]{1.5px}{1.1em}}');
+        } else {
+            this.displayResultEl.innerHTML = `<div style="font-size:0.85em;text-align:left;">${v} = ${val}<span class="lcd-cursor"></span></div>`;
+        }
     }
 
     handleCalcKey(key) {
@@ -1322,11 +1418,14 @@ class CasioFX991EX {
 
     renderSolveScreen() {
         const isMath = this.engine.inputOutput.startsWith('MathI');
+        const useKatex = isMath && typeof katex !== 'undefined';
         // Show equation at top
         let exprDisplay = this.solveExpression;
         // If expression doesn't contain '=', treat as f(x)=0
         if (!exprDisplay.includes('=')) exprDisplay += '=0';
-        if (isMath) {
+        if (useKatex) {
+            this.renderKatex(this.displayInputEl, this.exprToLatex(exprDisplay));
+        } else if (isMath) {
             this.displayInputEl.innerHTML = this.formatMathDisplay(this.escapeHtml(exprDisplay));
         } else {
             this.displayInputEl.textContent = exprDisplay;
@@ -1335,17 +1434,29 @@ class CasioFX991EX {
         if (this.solvePhase === 'input') {
             const v = this.solveVars[this.solveVarIndex];
             const val = this.solveEditBuffer !== '' ? this.solveEditBuffer : this.engine.formatResult(this.solveVarValues[v]);
-            const isTarget = v === this.solveTarget;
-            this.displayResultEl.innerHTML = `<div style="font-size:0.8em;text-align:left;font-weight:700;">${v} =${val}<span class="lcd-cursor"></span></div>`;
+            if (useKatex) {
+                const varLatex = v + '=' + val;
+                this.renderKatex(this.displayResultEl, varLatex + '\\htmlClass{katex-cursor}{\\rule[-0.2em]{1.5px}{1.1em}}');
+            } else {
+                this.displayResultEl.innerHTML = `<div style="font-size:0.8em;text-align:left;font-weight:700;">${v} =${val}<span class="lcd-cursor"></span></div>`;
+            }
         } else if (this.solvePhase === 'result') {
             // Show solution with L-R verification
             const v = this.solveTarget;
             const sol = this.solveVarValues[v];
             const lr = this.solveLR || 0;
-            this.displayResultEl.innerHTML =
-                `<div style="font-size:0.75em;text-align:left;font-weight:700;line-height:1.4;">` +
-                `${v}=<span style="float:right;">${this.engine.formatResult(sol)}</span><br>` +
-                `L−R=<span style="float:right;">${this.engine.formatResult(lr)}</span></div>`;
+            const solStr = this.engine.formatResult(sol);
+            const lrStr = this.engine.formatResult(lr);
+            if (useKatex) {
+                const latex = v + '=' + this.resultToLatex(solStr) +
+                    '\\\\\\text{L−R}=' + this.resultToLatex(lrStr);
+                this.renderKatex(this.displayResultEl, latex);
+            } else {
+                this.displayResultEl.innerHTML =
+                    `<div style="font-size:0.75em;text-align:left;font-weight:700;line-height:1.4;">` +
+                    `${v}=<span style="float:right;">${solStr}</span><br>` +
+                    `L−R=<span style="float:right;">${lrStr}</span></div>`;
+            }
         }
     }
 
@@ -1354,6 +1465,19 @@ class CasioFX991EX {
             if (key === 'ac') {
                 this.solvePhase = null;
                 this.clearAll();
+                return true;
+            }
+            if (key === 'left' || key === 'right') {
+                // Exit SOLVE result, return to editing the expression
+                this.solvePhase = null;
+                this.input = this.solveExpression;
+                this.displayInput = this.solveExpression;
+                this.showingResult = false;
+                this.justEvaluated = false;
+                this.cursorPos = key === 'left'
+                    ? Math.max(0, this.displayInput.length - 1)
+                    : this.displayInput.length;
+                this.updateDisplay();
                 return true;
             }
             return true;
@@ -1471,11 +1595,17 @@ class CasioFX991EX {
             if (Math.abs(dx) < 1e-14 * Math.max(1, Math.abs(x))) break;
         }
 
-        // Compute L-R for verification
+        // Polish solution: snap to clean integer/fraction if extremely close
+        x = this.polishSolveResult(x);
+
+        // Compute L-R for verification with polished solution
         this.engine.variables[target] = x;
         const lhsVal = this.engine.evaluate(lhsExpr);
         const rhsVal = this.engine.evaluate(rhsExpr);
-        const lr = (lhsVal.error || rhsVal.error) ? NaN : lhsVal.value - rhsVal.value;
+        let lr = (lhsVal.error || rhsVal.error) ? NaN : lhsVal.value - rhsVal.value;
+
+        // Round L-R to 0 if negligibly small (floating point noise)
+        if (!isNaN(lr) && Math.abs(lr) < 1e-10) lr = 0;
 
         this.solveVarValues[target] = x;
         this.engine.variables[target] = x;
@@ -1483,6 +1613,19 @@ class CasioFX991EX {
         this.solveLR = lr;
         this.solvePhase = 'result';
         this.renderSolveScreen();
+    }
+
+    // Snap Newton result to clean integer or simple fraction when extremely close
+    polishSolveResult(x) {
+        // Snap to integer
+        const r = Math.round(x);
+        if (Math.abs(x - r) < 1e-9) return r;
+        // Snap to simple fraction (denominator ≤ 12)
+        for (const d of [2, 3, 4, 5, 6, 8, 10, 12]) {
+            const n = Math.round(x * d);
+            if (Math.abs(x * d - n) < 1e-8) return n / d;
+        }
+        return x;
     }
 
     showQR() {
@@ -2053,17 +2196,16 @@ class CasioFX991EX {
             const expr = this.displayInput || '';
             const pos = this.cursorPos;
 
-            // Split expression at cursor position and insert cursor element
-            const before = expr.substring(0, pos);
-            const after = expr.substring(pos);
-            const cursor = '<span class="lcd-cursor"></span>';
-
             const isMath = this.engine.inputOutput.startsWith('MathI');
-            if (isMath) {
-                const bHtml = this.formatMathDisplay(this.escapeHtml(before));
-                const aHtml = this.formatMathDisplay(this.escapeHtml(after));
-                this.displayInputEl.innerHTML = bHtml + cursor + aHtml;
+            if (isMath && typeof katex !== 'undefined') {
+                // KaTeX rendering with embedded cursor
+                const latex = this.exprToLatex(expr, pos);
+                this.renderKatex(this.displayInputEl, latex);
             } else {
+                // Fallback: plain text with HTML cursor
+                const before = expr.substring(0, pos);
+                const after = expr.substring(pos);
+                const cursor = '<span class="lcd-cursor"></span>';
                 this.displayInputEl.innerHTML = this.escapeHtml(before) + cursor + this.escapeHtml(after);
             }
 
@@ -2077,45 +2219,291 @@ class CasioFX991EX {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    // === KaTeX Rendering Engine ===
+
+    // Render LaTeX string into a DOM element using KaTeX
+    renderKatex(element, latex) {
+        if (typeof katex === 'undefined') {
+            element.textContent = latex;
+            return;
+        }
+        try {
+            katex.render(latex || '\\phantom{0}', element, {
+                throwOnError: false,
+                trust: (ctx) => ctx.command === '\\htmlClass',
+                displayMode: false,
+                strict: false,
+                output: 'html'
+            });
+        } catch (e) {
+            element.textContent = latex;
+        }
+    }
+
+    // Render a result/decimal string into an element, using KaTeX for math notation when appropriate
+    renderResultDisplay(element, str, isMath) {
+        const useKatex = isMath && typeof katex !== 'undefined';
+        if (useKatex && (str.includes('×10^') || str.includes('√') || str.includes('/') || str.includes('π'))) {
+            this.renderKatex(element, this.resultToLatex(str));
+        } else if (useKatex) {
+            this.renderKatex(element, str);
+        } else if (isMath) {
+            element.innerHTML = this.formatMathDisplay(str);
+        } else {
+            element.textContent = str;
+        }
+    }
+
+    // Convert calculator input expression to LaTeX with optional cursor marker
+    exprToLatex(expr, cursorPos) {
+        if (!expr && (cursorPos === undefined || cursorPos < 0)) return '';
+        const CURSOR = '\u2336'; // APL I-beam as cursor placeholder
+
+        let s = expr || '';
+        if (cursorPos !== undefined && cursorPos >= 0) {
+            s = s.substring(0, cursorPos) + CURSOR + s.substring(cursorPos);
+        }
+
+        let latex = '';
+        let i = 0;
+        let bracketStack = []; // tracks: 'sqrt','cbrt','xrt','power','func','paren','abs'
+
+        // Multi-char token table: [pattern, latexReplacement, bracketType|null]
+        const tokens = [
+            ['sinh⁻¹(', '\\operatorname{sinh}^{-1}(', 'func'],
+            ['cosh⁻¹(', '\\operatorname{cosh}^{-1}(', 'func'],
+            ['tanh⁻¹(', '\\operatorname{tanh}^{-1}(', 'func'],
+            ['sin⁻¹(', '\\sin^{-1}(', 'func'],
+            ['cos⁻¹(', '\\cos^{-1}(', 'func'],
+            ['tan⁻¹(', '\\tan^{-1}(', 'func'],
+            ['RanInt(', '\\text{RanInt}(', 'func'],
+            ['d/dx(', '\\tfrac{d}{dx}(', 'func'],
+            ['sinh(', '\\sinh(', 'func'],
+            ['cosh(', '\\cosh(', 'func'],
+            ['tanh(', '\\tanh(', 'func'],
+            ['sin(', '\\sin(', 'func'],
+            ['cos(', '\\cos(', 'func'],
+            ['tan(', '\\tan(', 'func'],
+            ['log(', '\\log(', 'func'],
+            ['Abs(', '\\lvert', 'abs'],
+            ['Pol(', '\\text{Pol}(', 'func'],
+            ['Rec(', '\\text{Rec}(', 'func'],
+            ['Rnd(', '\\text{Rnd}(', 'func'],
+            ['ln(', '\\ln(', 'func'],
+            ['10^(', '10^{', 'power'],
+            ['e^(', 'e^{', 'power'],
+            ['³√(', '\\sqrt[3]{', 'sqrt'],
+            ['ˣ√(', '\\sqrt[x]{', 'sqrt'],
+            ['√(', '\\sqrt{', 'sqrt'],
+            ['^(', '^{', 'power'],
+            ['∫(', '\\int(', 'func'],
+            ['Σ(', '\\sum(', 'func'],
+            ['⁻¹', '^{-1}', null],
+            ['Ans', '\\text{Ans}', null],
+            ['nPr', '\\text{P}', null],
+            ['nCr', '\\text{C}', null],
+        ];
+
+        while (i < s.length) {
+            const ch = s[i];
+
+            // Cursor marker — pass through
+            if (ch === CURSOR) { latex += CURSOR; i++; continue; }
+
+            // Special: ×10^ with exponent (collect following digits)
+            if (s.startsWith('×10^', i)) {
+                latex += '{\\times}10^{';
+                i += 4;
+                if (i < s.length && s[i] === '-') { latex += '-'; i++; }
+                if (i < s.length && s[i] === CURSOR) { latex += CURSOR; i++; }
+                while (i < s.length && /\d/.test(s[i])) { latex += s[i]; i++; }
+                if (i < s.length && s[i] === CURSOR) { latex += CURSOR; i++; }
+                latex += '}';
+                continue;
+            }
+
+            // Check multi-char tokens
+            let matched = false;
+            for (const [pattern, replacement, bracketType] of tokens) {
+                if (s.startsWith(pattern, i)) {
+                    latex += replacement;
+                    if (bracketType) bracketStack.push(bracketType);
+                    i += pattern.length;
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+
+            // Single characters
+            switch (ch) {
+                case '(':
+                    latex += '(';
+                    bracketStack.push('paren');
+                    i++;
+                    break;
+                case ')': {
+                    const top = bracketStack.pop();
+                    if (top === 'sqrt' || top === 'power') {
+                        latex += '}';
+                    } else if (top === 'abs') {
+                        latex += '\\rvert';
+                    } else {
+                        latex += ')';
+                    }
+                    i++;
+                    break;
+                }
+                case '×':
+                    latex += '{\\times}';
+                    i++;
+                    break;
+                case '÷':
+                    latex += '{\\div}';
+                    i++;
+                    break;
+                case '−':
+                    latex += '-';
+                    i++;
+                    break;
+                case 'π':
+                    latex += '\\pi ';
+                    i++;
+                    break;
+                case '²':
+                    latex += '^{2}';
+                    i++;
+                    break;
+                case '³':
+                    latex += '^{3}';
+                    i++;
+                    break;
+                case '°':
+                    latex += '^{\\circ}';
+                    i++;
+                    break;
+                case '/': {
+                    // Fraction: / is always from the fraction key in MathI mode
+                    // Always render as \frac{}{} — collect digits before (numerator) and after (denominator)
+                    let numEnd = latex.length;
+                    let numStart = numEnd;
+                    while (numStart > 0 && (/\d/.test(latex[numStart - 1]) || latex[numStart - 1] === CURSOR)) {
+                        numStart--;
+                    }
+                    let denStr = '';
+                    let j = i + 1;
+                    while (j < s.length && (/\d/.test(s[j]) || s[j] === CURSOR)) {
+                        denStr += s[j]; j++;
+                    }
+                    const hasNum = numStart < numEnd;
+                    const num = hasNum ? latex.substring(numStart, numEnd) : '';
+                    // Always render as fraction — even with empty numerator/denominator
+                    const numDisplay = num || '\\phantom{0}';
+                    const denDisplay = denStr || '\\phantom{0}';
+                    latex = (hasNum ? latex.substring(0, numStart) : latex) +
+                        '\\frac{' + numDisplay + '}{' + denDisplay + '}';
+                    i = denStr.length > 0 ? j : i + 1;
+                    break;
+                }
+                default:
+                    latex += ch;
+                    i++;
+                    break;
+            }
+        }
+
+        // Close any unclosed brackets (partial expressions while typing)
+        while (bracketStack.length > 0) {
+            const top = bracketStack.pop();
+            if (top === 'sqrt' || top === 'power') {
+                latex += '}';
+            } else if (top === 'abs') {
+                latex += '\\rvert';
+            } else {
+                latex += ')';
+            }
+        }
+
+        // Post-process: convert π/n patterns to fractions (π wasn't caught by digit look-back)
+        // Handles: π/4 → \frac{\pi}{4}, 3π/4 → \frac{3\pi}{4}, -π/4 → -\frac{\pi}{4}
+        latex = latex.replace(/(-?\d*\\pi\s?)\/(\d+)/g, (m, numPi, den) => {
+            return '\\frac{' + numPi.trim() + '}{' + den + '}';
+        });
+
+        // Replace cursor marker with KaTeX blinking cursor element
+        if (latex.includes(CURSOR)) {
+            latex = latex.replace(CURSOR, '\\htmlClass{katex-cursor}{\\rule[-0.2em]{1.5px}{1.1em}}');
+        }
+
+        return latex;
+    }
+
+    // Convert result string to LaTeX for display
+    resultToLatex(str) {
+        if (!str) return '';
+        if (str.includes('ERROR')) return '\\text{' + str + '}';
+
+        let latex = str;
+
+        // Scientific notation: ×10^n → \times 10^{n}
+        latex = latex.replace(/×10\^(-?\d+)/g, '{\\times}10^{$1}');
+
+        // Square root: a√b or √b (result from trySquareRoot)
+        if (/√/.test(latex)) {
+            latex = latex.replace(/^(-?)(\d+)√(\d+)$/, (m, sign, a, b) => `${sign}${a}\\sqrt{${b}}`);
+            latex = latex.replace(/^(-?)√(\d+)$/, (m, sign, b) => `${sign}\\sqrt{${b}}`);
+        }
+
+        // Pi fraction: nπ/d → \frac{n\pi}{d}
+        if (latex.includes('π') && latex.includes('/')) {
+            latex = latex.replace(/^(-?\d*)π\/(\d+)$/, (m, numPi, den) => {
+                let num = numPi === '' ? '\\pi' : (numPi === '-' ? '-\\pi' : numPi + '\\pi');
+                return '\\frac{' + num + '}{' + den + '}';
+            });
+        }
+
+        // Mixed number: w n/d → w\frac{n}{d}
+        latex = latex.replace(/^(-?\d+)\s+(\d+)\/(\d+)$/, (m, w, n, d) => w + '\\frac{' + n + '}{' + d + '}');
+
+        // Simple fraction: n/d → \frac{n}{d}
+        latex = latex.replace(/^(-?\d+)\/(\d+)$/, (m, n, d) => '\\frac{' + n + '}{' + d + '}');
+
+        // Pi without fraction: nπ or π
+        if (latex.includes('π')) {
+            latex = latex.replace(/(-?\d*)π/g, (m, n) => {
+                if (n === '' || n === undefined) return '\\pi';
+                if (n === '-') return '-\\pi';
+                return n + '\\pi';
+            });
+        }
+
+        // Remaining × (not followed by 10^)
+        latex = latex.replace(/×/g, '{\\times}');
+
+        // Engineering symbol μ
+        latex = latex.replace(/μ/g, '\\mu');
+
+        return latex;
+    }
+
+    // Legacy fallback: HTML-based math display (used when KaTeX unavailable)
     formatMathDisplay(expr) {
-        // Render natural textbook display like real Casio ClassWiz LCD
         let html = expr;
-
-        // Render √(content) as radical with vinculum bar
-        html = html.replace(/√\(([^)]*)\)/g, (match, content) => {
-            return `<span class="radical"><span class="radical-sign">√</span><span class="radical-body">${content}</span></span>`;
-        });
-        // Render standalone √number (no parens) - e.g. 2√6
-        html = html.replace(/√(\d+)/g, (match, num) => {
-            return `<span class="radical"><span class="radical-sign">√</span><span class="radical-body">${num}</span></span>`;
-        });
-
-        // Render mixed numbers: whole num/den (e.g. "3 13/88")
-        html = html.replace(/(\d+)\s+(\d+)\/(\d+)/g, (match, whole, num, den) => {
-            return `${whole}<span class="frac"><span class="frac-num">${num}</span><span class="frac-bar"></span><span class="frac-den">${den}</span></span>`;
-        });
-
-        // Render simple fractions: num/den (e.g. "277/88")
-        html = html.replace(/(-?\d+)\/(\d+)/g, (match, num, den) => {
-            return `<span class="frac"><span class="frac-num">${num}</span><span class="frac-bar"></span><span class="frac-den">${den}</span></span>`;
-        });
-
-        // Render superscripts: ² ³
+        html = html.replace(/√\(([^)]*)\)/g, (m, c) =>
+            `<span class="radical"><span class="radical-sign">√</span><span class="radical-body">${c}</span></span>`);
+        html = html.replace(/√(\d+)/g, (m, n) =>
+            `<span class="radical"><span class="radical-sign">√</span><span class="radical-body">${n}</span></span>`);
+        html = html.replace(/(\d+)\s+(\d+)\/(\d+)/g, (m, w, n, d) =>
+            `${w}<span class="frac"><span class="frac-num">${n}</span><span class="frac-bar"></span><span class="frac-den">${d}</span></span>`);
+        html = html.replace(/(-?\d+)\/(\d+)/g, (m, n, d) =>
+            `<span class="frac"><span class="frac-num">${n}</span><span class="frac-bar"></span><span class="frac-den">${d}</span></span>`);
         html = html.replace(/²/g, '<sup>2</sup>');
         html = html.replace(/³/g, '<sup>3</sup>');
-
-        // Render x^(n) as x with superscript
-        html = html.replace(/\^?\(([^)]+)\)/g, (match, content) => {
-            // Only convert if preceded by ^
-            return match;
-        });
         html = html.replace(/\^\((\d+)\)/g, '<sup>$1</sup>');
-
         return html;
     }
 
     formatInputDisplay(expr) {
-        // Clean up expression for display
         return expr;
     }
 

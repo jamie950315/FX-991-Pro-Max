@@ -187,7 +187,33 @@ body {
     color: #c5d4b5;
 }
 
-/* Fraction display — natural textbook style like real Casio ClassWiz LCD */
+/* === KaTeX LCD Overrides === */
+/* KaTeX renders inside .lcd-in and .lcd-out for MathI/MathO natural display */
+.lcd .katex {
+    font-size: inherit;
+    color: #1a1a1a;
+    font-weight: 400;
+    white-space: nowrap;
+    text-rendering: auto;
+}
+.lcd-in .katex { text-align: left; }
+.lcd-out .katex { text-align: right; }
+
+/* Make KaTeX fraction lines match LCD dark color */
+.lcd .katex .frac-line { border-bottom-color: #1a1a1a; }
+.lcd .katex .sqrt-sign { color: #1a1a1a; }
+.lcd .katex .vlist-t { color: #1a1a1a; }
+
+/* KaTeX cursor: blinking vertical line inside math expressions */
+.katex-cursor {
+    animation: blink 1s step-end infinite;
+    display: inline-block;
+}
+.katex-cursor .rule {
+    border-color: #1a1a1a !important;
+}
+
+/* Legacy fraction/radical styles (kept as fallback for non-KaTeX mode) */
 .frac {
     display: inline-flex;
     flex-direction: column;
@@ -208,7 +234,6 @@ body {
 }
 .frac-den { order: 2; padding: 0 2px; }
 
-/* Radical display — √ with vinculum bar extending over radicand */
 .radical {
     display: inline-flex;
     align-items: flex-end;
@@ -226,7 +251,7 @@ body {
     line-height: 1.15;
 }
 
-/* Superscript for exponents */
+/* Superscript for exponents (legacy fallback) */
 .lcd-in sup, .lcd-out sup {
     font-size: 0.65em;
     vertical-align: super;

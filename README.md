@@ -20,11 +20,15 @@ A 1:1 web-based replica of the Casio fx-991EX CLASSWIZ scientific calculator, bu
 | B | Inequality | Polynomial inequality solving (degree 2-4) |
 | C | Ratio | Proportion solving (A:B=X:D or A:B=C:X) |
 
-### Natural Textbook Display
-- Stacked fraction rendering (numerator/denominator with horizontal bar)
+### Natural Textbook Display (KaTeX-powered)
+- **KaTeX math rendering** for instant, accurate, publication-quality display
+- Stacked fraction rendering with proper horizontal bar (input and output)
 - Radical display with vinculum (√ with overline extending over radicand)
-- Superscript exponents
+- Superscript exponents, scientific notation (×10ⁿ)
 - Mixed number display (whole + fraction)
+- Pi fractions rendered naturally (π/4, 3π/4)
+- Blinking cursor embedded inside KaTeX expressions
+- Fraction key always renders stacked fraction template (even without preceding digits)
 
 ### Exact Form Results (MathI/MathO)
 - Simplified radical form: `√24 → 2√6`, `√24+√150 → 7√6`
@@ -37,6 +41,8 @@ A 1:1 web-based replica of the Casio fx-991EX CLASSWIZ scientific calculator, bu
 - Solve equations for any variable
 - Multi-variable support with initial value input
 - L−R verification display
+- Solution polishing (snaps to clean integers/fractions)
+- Arrow keys exit result screen to resume editing
 
 ### Unit Conversion (SHIFT+8 CONV)
 9 categories: Length, Area, Volume, Mass, Velocity, Pressure, Energy, Power, Temperature
@@ -49,7 +55,9 @@ A 1:1 web-based replica of the Casio fx-991EX CLASSWIZ scientific calculator, bu
 ### Additional Features
 - 47 built-in scientific constants
 - Auto-complete brackets on `=` press
+- Right arrow auto-closes unclosed function brackets (exit sin(), √(), etc.)
 - Blinking cursor with arrow key navigation
+- Expression history with KaTeX rendering (up/down arrows)
 - SHIFT/ALPHA modifier key system
 - Expression history navigation
 - Memory: Ans, variables A-F/M/x/y, independent memory M+/M-
@@ -59,14 +67,22 @@ A 1:1 web-based replica of the Casio fx-991EX CLASSWIZ scientific calculator, bu
 ## Architecture
 
 ```
-index.html      – Calculator layout with image overlay buttons
-style.css       – LCD display styling, Natural Textbook Display CSS
+index.html      – Calculator layout with image overlay buttons + KaTeX CDN
+style.css       – LCD display styling, KaTeX overrides for Natural Textbook Display
 engine.js       – Math engine: tokenizer, recursive descent parser
 modes.js        – Mode handlers for all 12 calculator modes
-app.js          – UI controller: key handling, display, menus, SOLVE
+app.js          – UI controller: key handling, KaTeX display, menus, SOLVE
 calc.png        – Calculator body image (UI background)
 ClassWizFontSet/– Official Casio ClassWiz LCD fonts
 ```
+
+### KaTeX Display System
+The emulator uses [KaTeX](https://katex.org/) for real-time math rendering in MathI/MathO mode:
+- `exprToLatex()` — Converts input expressions to LaTeX with bracket-stack tracking
+- `resultToLatex()` — Converts exact-form results (√, π, fractions) to LaTeX
+- `renderResultDisplay()` — Unified helper for result rendering with KaTeX/fallback
+- Cursor rendered inside KaTeX via `\htmlClass` with CSS blink animation
+- SRI integrity checks on CDN assets; trust restricted to `\htmlClass` only
 
 ## Development
 
