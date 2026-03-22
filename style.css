@@ -1,0 +1,300 @@
+/* ClassWiz Font */
+@font-face {
+    font-family: 'CASIO ClassWiz';
+    src: url('ClassWizFontSet/CASIO ClassWiz.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #0d0d0d;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 6px 0;
+    overflow-x: hidden;
+}
+
+/* Container */
+.calculator {
+    position: relative;
+    width: 340px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.calc-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    pointer-events: none;
+    filter: drop-shadow(0 8px 30px rgba(0,0,0,0.7));
+}
+
+/* LCD overlay — matches real Casio fx-991EX screen layout
+   Real LCD: indicators at very top (thin), input top-left, output bottom-right */
+.lcd {
+    position: absolute;
+    left: 10.2%;
+    top: 15.2%;
+    width: 79.5%;
+    height: 15.5%;
+    background: #c5d4b5;
+    border-radius: 3px;
+    padding: 1px 4px 2px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* Indicator bar — very thin strip at very top */
+.lcd-ind {
+    display: flex;
+    gap: 4px;
+    font-size: 6.5px;
+    color: #1a1a1a;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    line-height: 1;
+    height: 8px;
+    align-items: center;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.ind { font-weight: 700; opacity: 0.85; }
+.ind.hidden { opacity: 0.06; }
+
+/* LCD body — input top-left, output bottom-right, space between */
+.lcd-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Input expression — top-left, same font as output
+   Real LCD: input and output use same ~15px character height
+   Total LCD ~111px: indicators 8px, body ~103px
+   Input takes top portion, output takes bottom portion */
+.lcd-in {
+    font-size: 20px;
+    color: #1a1a1a;
+    text-align: left;
+    line-height: 1.25;
+    word-break: break-all;
+    font-weight: 700;
+    font-family: 'Consolas', 'Courier New', monospace;
+    flex-shrink: 0;
+    min-height: 24px;
+}
+
+/* Result — bottom-right, slightly larger */
+.lcd-out {
+    font-size: 24px;
+    color: #1a1a1a;
+    text-align: right;
+    font-weight: 700;
+    line-height: 1.15;
+    word-break: break-all;
+    font-family: 'Consolas', 'Courier New', monospace;
+    flex-shrink: 0;
+    min-height: 28px;
+}
+
+.lcd-out.error { color: #8b0000; }
+
+/* Blinking cursor */
+.lcd-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: #1a1a1a;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+    margin: 0 -1px;
+}
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ClassWiz icon font */
+.cw { font-family: 'CASIO ClassWiz', 'Consolas', monospace; }
+
+/* Menu grid (main MODE menu) - 4×2 paged layout matching real calculator */
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 1px;
+    flex: 1;
+    min-height: 0;
+}
+
+.menu-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a1a1a;
+    padding: 0;
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.menu-cell.selected {
+    background: #1a1a1a;
+    color: #c5d4b5;
+}
+
+
+
+.menu-status {
+    font-size: 9px;
+    color: #1a1a1a;
+    text-align: left;
+    padding-top: 1px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    font-family: 'Consolas', 'Courier New', monospace;
+    flex-shrink: 0;
+}
+
+/* Setup text list menu */
+.menu-list {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.menu-list-item {
+    font-size: 10px;
+    color: #1a1a1a;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.menu-list-item.selected {
+    background: #1a1a1a;
+    color: #c5d4b5;
+}
+
+/* Fraction display — natural textbook style like real Casio ClassWiz LCD */
+.frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    font-size: 0.72em;
+    line-height: 1.05;
+    margin: 0 1px;
+    font-weight: 700;
+}
+.frac-num { order: 0; padding: 0 2px; }
+.frac-bar {
+    width: 100%;
+    height: 1.5px;
+    background: #1a1a1a;
+    margin: 0;
+    min-width: 8px;
+}
+.frac-den { order: 2; padding: 0 2px; }
+
+/* Radical display — √ with vinculum bar extending over radicand */
+.radical {
+    display: inline-flex;
+    align-items: flex-end;
+    vertical-align: baseline;
+}
+.radical-sign {
+    font-size: 1.1em;
+    line-height: 1;
+    position: relative;
+    top: -1px;
+}
+.radical-body {
+    border-top: 1.5px solid #1a1a1a;
+    padding: 0 2px 0 1px;
+    line-height: 1.15;
+}
+
+/* Superscript for exponents */
+.lcd-in sup, .lcd-out sup {
+    font-size: 0.65em;
+    vertical-align: super;
+    line-height: 0;
+}
+
+/* Invisible hit-area buttons */
+.h {
+    position: absolute;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    outline: none;
+    z-index: 10;
+    border-radius: 3px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.06s;
+}
+
+.h:active, .h.pressed {
+    background: rgba(255,255,255,0.13);
+}
+
+/* D-pad shaped hit areas - pie-slice wedges */
+.dpad-area {
+    position: absolute;
+    z-index: 10;
+}
+
+.dpad-area .h {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 0;
+}
+
+.dpad-up {
+    clip-path: polygon(0% 0%, 100% 0%, 50% 50%);
+}
+
+.dpad-down {
+    clip-path: polygon(0% 100%, 100% 100%, 50% 50%);
+}
+
+.dpad-left {
+    clip-path: polygon(0% 0%, 0% 100%, 50% 50%);
+}
+
+.dpad-right {
+    clip-path: polygon(100% 0%, 100% 100%, 50% 50%);
+}
+
+/* Power off */
+.calculator.off .lcd { background: #a0b090; }
+.calculator.off .lcd-body, .calculator.off .lcd-ind { visibility: hidden; }
+
+/* Responsive sizing */
+@media (min-height: 800px) { .calculator { width: 370px; } }
+@media (min-height: 920px) {
+    .calculator { width: 440px; }
+    .lcd-out { font-size: 28px; }
+    .lcd-in { font-size: 23px; }
+}
+@media (min-height: 1050px) {
+    .calculator { width: 480px; }
+    .lcd-out { font-size: 32px; }
+    .lcd-in { font-size: 26px; }
+}
+@media (max-width: 420px) {
+    .calculator { width: 100vw; }
+    body { padding: 0; }
+}

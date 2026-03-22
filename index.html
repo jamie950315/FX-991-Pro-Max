@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casio fx-991EX CLASSWIZ Emulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="calculator" id="calculator">
+        <img src="calc.png" alt="Casio fx-991EX" class="calc-img" draggable="false">
+
+        <!-- LCD Display overlay -->
+        <div class="lcd" id="lcd">
+            <div class="lcd-ind" id="indicators">
+                <span id="ind-shift" class="ind hidden">S</span>
+                <span id="ind-alpha" class="ind hidden">A</span>
+                <span id="ind-m" class="ind hidden">M</span>
+                <span id="ind-sto" class="ind hidden">STO</span>
+                <span id="ind-angle" class="ind">D</span>
+                <span id="ind-fix" class="ind hidden">FIX</span>
+                <span id="ind-sci" class="ind hidden">SCI</span>
+                <span id="ind-math" class="ind">Math</span>
+            </div>
+            <div class="lcd-body">
+                <div class="lcd-in" id="display-input"></div>
+                <div class="lcd-out" id="display-result">0</div>
+            </div>
+        </div>
+
+        <!-- Hit areas: Row 1 (silver buttons) -->
+        <button class="h" style="left:9.06%;top:37.65%;width:9.25%;height:4.19%" data-key="shift"></button>
+        <button class="h" style="left:22.05%;top:37.65%;width:9.25%;height:4.19%" data-key="alpha"></button>
+        <!-- D-pad: single overlay div with shaped wedge buttons -->
+        <div class="dpad-area" style="left:35.1%;top:37.8%;width:30.2%;height:9.9%">
+            <button class="h dpad-up" data-key="up"></button>
+            <button class="h dpad-down" data-key="down"></button>
+            <button class="h dpad-left" data-key="left"></button>
+            <button class="h dpad-right" data-key="right"></button>
+        </div>
+        <button class="h" style="left:69.29%;top:37.65%;width:9.25%;height:4.19%" data-key="menu"></button>
+        <button class="h" style="left:82.28%;top:37.65%;width:9.25%;height:4.19%" data-key="on"></button>
+
+        <!-- Row 2: OPTN, CALC, ∫, x -->
+        <button class="h" style="left:7.68%;top:45.48%;width:12.01%;height:3.73%" data-key="optn"></button>
+        <button class="h" style="left:22.24%;top:45.48%;width:11.81%;height:3.73%" data-key="calc"></button>
+        <button class="h" style="left:65.75%;top:45.48%;width:12.20%;height:3.73%" data-key="integral"></button>
+        <button class="h" style="left:80.51%;top:45.48%;width:11.81%;height:3.73%" data-key="varx"></button>
+
+        <!-- Row 3: fraction, √, x², x^, log, ln -->
+        <button class="h" style="left:7.68%;top:51.16%;width:12.01%;height:3.73%" data-key="fraction"></button>
+        <button class="h" style="left:22.24%;top:51.16%;width:11.81%;height:3.73%" data-key="sqrt"></button>
+        <button class="h" style="left:36.81%;top:51.16%;width:12.01%;height:3.73%" data-key="square"></button>
+        <button class="h" style="left:51.38%;top:51.16%;width:12.01%;height:3.73%" data-key="power"></button>
+        <button class="h" style="left:65.75%;top:51.16%;width:12.20%;height:3.73%" data-key="log"></button>
+        <button class="h" style="left:80.51%;top:51.16%;width:11.81%;height:3.73%" data-key="ln"></button>
+
+        <!-- Row 4: (-), DMS, x⁻¹, sin, cos, tan -->
+        <button class="h" style="left:7.68%;top:56.85%;width:12.01%;height:3.63%" data-key="negate"></button>
+        <button class="h" style="left:22.24%;top:56.85%;width:11.81%;height:3.63%" data-key="dms"></button>
+        <button class="h" style="left:36.81%;top:56.85%;width:12.01%;height:3.63%" data-key="reciprocal"></button>
+        <button class="h" style="left:51.38%;top:56.85%;width:12.01%;height:3.63%" data-key="sin"></button>
+        <button class="h" style="left:65.75%;top:56.85%;width:12.20%;height:3.63%" data-key="cos"></button>
+        <button class="h" style="left:80.51%;top:56.85%;width:11.81%;height:3.63%" data-key="tan"></button>
+
+        <!-- Row 5: STO, ENG, (, ), S⇔D, M+ -->
+        <button class="h" style="left:7.68%;top:62.44%;width:12.01%;height:3.73%" data-key="sto"></button>
+        <button class="h" style="left:22.24%;top:62.44%;width:11.81%;height:3.73%" data-key="eng"></button>
+        <button class="h" style="left:36.81%;top:62.44%;width:12.01%;height:3.73%" data-key="lparen"></button>
+        <button class="h" style="left:51.38%;top:62.44%;width:12.01%;height:3.73%" data-key="rparen"></button>
+        <button class="h" style="left:65.75%;top:62.44%;width:12.20%;height:3.73%" data-key="sd"></button>
+        <button class="h" style="left:80.51%;top:62.44%;width:11.81%;height:3.73%" data-key="mplus"></button>
+
+        <!-- Row 6: 7, 8, 9, DEL, AC -->
+        <button class="h" style="left:7.68%;top:68.31%;width:14.76%;height:4.85%" data-key="7"></button>
+        <button class="h" style="left:25.20%;top:68.31%;width:14.76%;height:4.85%" data-key="8"></button>
+        <button class="h" style="left:42.72%;top:68.31%;width:14.76%;height:4.85%" data-key="9"></button>
+        <button class="h" style="left:60.24%;top:68.31%;width:14.76%;height:4.85%" data-key="del"></button>
+        <button class="h" style="left:77.76%;top:68.31%;width:14.76%;height:4.85%" data-key="ac"></button>
+
+        <!-- Row 7: 4, 5, 6, ×, ÷ -->
+        <button class="h" style="left:7.68%;top:75.30%;width:14.76%;height:4.85%" data-key="4"></button>
+        <button class="h" style="left:25.20%;top:75.30%;width:14.76%;height:4.85%" data-key="5"></button>
+        <button class="h" style="left:42.72%;top:75.30%;width:14.76%;height:4.85%" data-key="6"></button>
+        <button class="h" style="left:60.24%;top:75.30%;width:14.76%;height:4.85%" data-key="multiply"></button>
+        <button class="h" style="left:77.76%;top:75.30%;width:14.76%;height:4.85%" data-key="divide"></button>
+
+        <!-- Row 8: 1, 2, 3, +, − -->
+        <button class="h" style="left:7.68%;top:82.29%;width:14.76%;height:4.85%" data-key="1"></button>
+        <button class="h" style="left:25.20%;top:82.29%;width:14.76%;height:4.85%" data-key="2"></button>
+        <button class="h" style="left:42.72%;top:82.29%;width:14.76%;height:4.85%" data-key="3"></button>
+        <button class="h" style="left:60.24%;top:82.29%;width:14.76%;height:4.85%" data-key="add"></button>
+        <button class="h" style="left:77.76%;top:82.29%;width:14.76%;height:4.85%" data-key="subtract"></button>
+
+        <!-- Row 9: 0, ., ×10ˣ, Ans, = -->
+        <button class="h" style="left:7.68%;top:89.19%;width:14.76%;height:4.85%" data-key="0"></button>
+        <button class="h" style="left:25.20%;top:89.19%;width:14.76%;height:4.85%" data-key="dot"></button>
+        <button class="h" style="left:42.72%;top:89.19%;width:14.76%;height:4.85%" data-key="exp"></button>
+        <button class="h" style="left:60.24%;top:89.19%;width:14.76%;height:4.85%" data-key="ans"></button>
+        <button class="h" style="left:77.76%;top:89.19%;width:14.76%;height:4.85%" data-key="equals"></button>
+    </div>
+
+    <script src="engine.js"></script>
+    <script src="modes.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
