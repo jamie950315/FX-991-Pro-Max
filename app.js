@@ -395,11 +395,9 @@ class CasioFX991EX {
             this.showingResult = false;
         }
 
-        // Auto-close function parentheses before binary operators
-        // When user types +,-,×,÷ after something like √(24, auto-close the √()
-        if ('+-−×÷'.includes(ch) || ch === '+' || ch === '−') {
-            this.autoCloseFunctionParens();
-        }
+        // Note: Auto-close function parens on binary operators is disabled.
+        // Real Casio uses → key to exit function templates.
+        // Use → key (autoCloseOneBracket) or = key (autoCloseBrackets) instead.
 
         this.lastExpression = this.input;
         // Insert at cursor position
@@ -413,25 +411,44 @@ class CasioFX991EX {
     // e.g., √(24| + operator → √(24)| + operator
     autoCloseFunctionParens() {
         const beforeCursor = this.input.substring(0, this.cursorPos);
-        let openCount = 0;
-        // Count unclosed function parens
-        const funcStarts = ['√(', 'sin(', 'cos(', 'tan(', 'ln(', 'log(', 'sin⁻¹(', 'cos⁻¹(', 'tan⁻¹(',
-            '10^(', 'e^(', '³√(', 'Abs(', 'Pol(', 'Rec(', 'sinh(', 'cosh(', 'tanh('];
+
+        // Find positions of all unclosed '('
+        let stack = []; // stack of indices
         for (let i = 0; i < beforeCursor.length; i++) {
-            if (beforeCursor[i] === '(') openCount++;
-            else if (beforeCursor[i] === ')') openCount--;
+            if (beforeCursor[i] === '(') stack.push(i);
+            else if (beforeCursor[i] === ')') { if (stack.length) stack.pop(); }
         }
-        // Close all unclosed function parens
-        if (openCount > 0) {
-            // Check if we're inside a function (not a user-typed paren)
-            // Simple heuristic: close one paren if the last significant char was a digit or )
-            const lastChar = beforeCursor.trim().slice(-1);
-            if (/[0-9)πe]/.test(lastChar)) {
-                const close = ')'.repeat(openCount);
-                this.input = beforeCursor + close + this.input.substring(this.cursorPos);
-                this.displayInput = this.displayInput.substring(0, this.cursorPos) + close + this.displayInput.substring(this.cursorPos);
-                this.cursorPos += close.length;
+        if (stack.length === 0) return;
+
+        const lastChar = beforeCursor.trim().slice(-1);
+        if (!/[0-9)πe𝒊]/.test(lastChar)) return;
+
+        // Only close function parens (preceded by function name), not user-typed parens
+        const funcPrefixes = ['sin⁻¹', 'cos⁻¹', 'tan⁻¹', 'sinh⁻¹', 'cosh⁻¹', 'tanh⁻¹',
+            'sinh', 'cosh', 'tanh', 'sin', 'cos', 'tan', 'ln', 'log',
+            '√', '³√', 'ˣ√', '10^', 'e^', '^', 'Abs', 'Pol', 'Rec',
+            'd/dx', '∫', 'Σ', 'RanInt', 'Rnd', 'Arg', 'Conjg', 'ReP', 'ImP',
+            'Det', 'Trn', 'Identity', 'Angle', 'UnitV'];
+
+        // Count closeable function parens from innermost outward
+        let closeCount = 0;
+        for (let j = stack.length - 1; j >= 0; j--) {
+            const pos = stack[j];
+            let isFunc = false;
+            for (const prefix of funcPrefixes) {
+                if (beforeCursor.substring(0, pos).endsWith(prefix)) {
+                    isFunc = true; break;
+                }
             }
+            if (isFunc) closeCount++;
+            else break; // Stop at first user-typed paren
+        }
+
+        if (closeCount > 0) {
+            const close = ')'.repeat(closeCount);
+            this.input = beforeCursor + close + this.input.substring(this.cursorPos);
+            this.displayInput = this.displayInput.substring(0, this.cursorPos) + close + this.displayInput.substring(this.cursorPos);
+            this.cursorPos += close.length;
         }
     }
 
@@ -1120,6 +1137,8 @@ class CasioFX991EX {
             { id: 5, name: 'Fraction Result', value: this.engine.fractionResult },
             { id: 6, name: 'Complex', value: this.engine.complexFormat },
             { id: 7, name: 'Digit Separator', value: this.engine.digitSeparator ? 'On' : 'Off' },
+            { id: 8, name: 'Statistics', value: this.engine.statFrequency ? 'Freq On' : 'Freq Off' },
+            { id: 9, name: 'Table', value: this.engine.tableUseGx ? 'f(x),g(x)' : 'f(x)' },
         ];
         this.renderMenu();
     }
@@ -1656,7 +1675,11 @@ class CasioFX991EX {
             case 'setup-numformat': title = 'Number Format'; break;
             case 'setup-engsym': title = 'Engineer Symbol?'; break;
             case 'setup-fracresult': title = 'Fraction Result'; break;
+            case 'setup-complex': title = 'Complex'; break;
             case 'setup-digsep': title = 'Digit Separator?'; break;
+            case 'setup-stat': title = 'Frequency?'; break;
+            case 'setup-table': title = 'Table'; break;
+            case 'stat-var-submenu': title = 'Stat Variable'; break;
             case 'optn-engsym': title = 'Engineer Symbol'; break;
             case 'optn': title = 'OPTN'; break;
             case 'optn-hyp': title = 'Hyperbolic'; break;
@@ -1906,6 +1929,27 @@ class CasioFX991EX {
                 this.closeMenu();
                 break;
 
+            case 'setup-complex':
+                this.engine.complexFormat = index === 0 ? 'a+bi' : 'r∠θ';
+                this.closeMenu();
+                break;
+
+            case 'setup-stat':
+                this.engine.statFrequency = index === 0;
+                if (this.modeHandler && this.modeHandler.showFreq !== undefined) {
+                    this.modeHandler.showFreq = index === 0;
+                }
+                this.closeMenu();
+                break;
+
+            case 'setup-table':
+                this.engine.tableUseGx = index === 1;
+                if (this.modeHandler && this.modeHandler.useGx !== undefined) {
+                    this.modeHandler.useGx = index === 1;
+                }
+                this.closeMenu();
+                break;
+
             case 'setup-digsep':
                 this.engine.digitSeparator = index === 0;
                 this.closeMenu();
@@ -2006,10 +2050,22 @@ class CasioFX991EX {
                     this.modeHandler.selectType(index);
                 }
                 break;
+            case 'stat-var-submenu':
+                this.closeMenu();
+                if (this.modeHandler && this.modeHandler.handleStatVarSelection) {
+                    this.modeHandler.handleStatVarSelection(index);
+                }
+                break;
             case 'dist-type':
                 this.closeMenu();
                 if (this.modeHandler && this.modeHandler instanceof DistributionMode) {
                     this.modeHandler.selectType(index);
+                }
+                break;
+            case 'dist-listvar':
+                this.closeMenu();
+                if (this.modeHandler && this.modeHandler instanceof DistributionMode) {
+                    this.modeHandler.handleListVarChoice(index);
                 }
                 break;
             case 'eq-type':
@@ -2099,12 +2155,39 @@ class CasioFX991EX {
                 ];
                 this.renderMenu();
                 break;
+            case 5: // Complex format
+                this.menuType = 'setup-complex';
+                this.menuSelection = 0;
+                this.menuItems = [
+                    { id: 1, name: 'a+bi' },
+                    { id: 2, name: 'r∠θ' },
+                ];
+                this.renderMenu();
+                break;
             case 6: // Digit Separator
                 this.menuType = 'setup-digsep';
                 this.menuSelection = 0;
                 this.menuItems = [
                     { id: 1, name: 'On' },
                     { id: 2, name: 'Off' },
+                ];
+                this.renderMenu();
+                break;
+            case 7: // Statistics (Frequency)
+                this.menuType = 'setup-stat';
+                this.menuSelection = 0;
+                this.menuItems = [
+                    { id: 1, name: 'On' },
+                    { id: 2, name: 'Off' },
+                ];
+                this.renderMenu();
+                break;
+            case 8: // Table (function count)
+                this.menuType = 'setup-table';
+                this.menuSelection = 0;
+                this.menuItems = [
+                    { id: 1, name: 'f(x)' },
+                    { id: 2, name: 'f(x),g(x)' },
                 ];
                 this.renderMenu();
                 break;
@@ -2299,6 +2382,27 @@ class CasioFX991EX {
             ['∫(', '\\int(', 'func'],
             ['Σ(', '\\sum(', 'func'],
             ['⁻¹', '^{-1}', null],
+            ['Conjg(', '\\overline{', 'sqrt'],  // conjugate uses overline, close with }
+            ['Arg(', '\\text{Arg}(', 'func'],
+            ['ReP(', '\\text{ReP}(', 'func'],
+            ['ImP(', '\\text{ImP}(', 'func'],
+            ['▶r∠θ', '\\blacktriangleright r\\angle\\theta', null],
+            ['▶a+bi', '\\blacktriangleright a+bi', null],
+            ['Identity(', '\\text{Identity}(', 'func'],
+            ['Det(', '\\text{Det}(', 'func'],
+            ['Trn(', '\\text{Trn}(', 'func'],
+            ['MatAns', '\\text{MatAns}', null],
+            ['MatA', '\\text{MatA}', null],
+            ['MatB', '\\text{MatB}', null],
+            ['MatC', '\\text{MatC}', null],
+            ['MatD', '\\text{MatD}', null],
+            ['VctAns', '\\text{VctAns}', null],
+            ['VctA', '\\text{VctA}', null],
+            ['VctB', '\\text{VctB}', null],
+            ['VctC', '\\text{VctC}', null],
+            ['VctD', '\\text{VctD}', null],
+            ['Angle(', '\\text{Angle}(', 'func'],
+            ['UnitV(', '\\text{UnitV}(', 'func'],
             ['Ans', '\\text{Ans}', null],
             ['nPr', '\\text{P}', null],
             ['nCr', '\\text{C}', null],
@@ -2380,6 +2484,18 @@ class CasioFX991EX {
                     break;
                 case '°':
                     latex += '^{\\circ}';
+                    i++;
+                    break;
+                case '∠':
+                    latex += '\\angle ';
+                    i++;
+                    break;
+                case '•':
+                    latex += '\\cdot ';
+                    i++;
+                    break;
+                case '𝒊':
+                    latex += 'i';
                     i++;
                     break;
                 case '/': {
@@ -2607,4 +2723,143 @@ class CasioFX991EX {
 // === Initialize ===
 document.addEventListener('DOMContentLoaded', () => {
     window.calculator = new CasioFX991EX();
+
+    // === DEBUG TEST BENCH (50 tests) ===
+    // Only active with ?debug=1 query param. Tap CASIO logo to advance.
+    const debugBtn = document.getElementById('debug-btn');
+    const debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+    if (debugBtn && debugEnabled) {
+        let testIdx = -1;
+        const calc = window.calculator;
+        const type = str => { for (const ch of str) calc.inputChar(ch); };
+        const press = key => calc.handleKey(key);
+        const enterMode = n => { press('menu'); press(n.toString()); };
+        const showLabel = (n, desc) => {
+            const indEl = document.getElementById('indicators');
+            if (indEl) {
+                let badge = indEl.querySelector('.test-badge');
+                if (!badge) { badge = document.createElement('span'); badge.className = 'test-badge'; badge.style.cssText = 'font-size:7px;font-weight:900;color:#1a1a1a;opacity:0.9;margin-left:auto;'; indEl.appendChild(badge); }
+                badge.textContent = '#' + n;
+            }
+        };
+
+        // Helper to set up matrices/vectors once
+        let matDefined = false, vctDefined = false;
+        const defineMatrices = () => {
+            if (matDefined) return;
+            enterMode('4');
+            const m = calc.modeHandler;
+            m.defineMode='define'; m.phase='define-select';
+            m.handleDefineSelect('1'); m.handleDefineRows('2'); m.handleDefineCols('2');
+            [1,2,-3,4].forEach(v => { m.editBuffer=v.toString(); m.handleEditor('equals'); });
+            m.defineMode='define'; m.phase='define-select';
+            m.handleDefineSelect('2'); m.handleDefineRows('2'); m.handleDefineCols('2');
+            [3,-6,8,2].forEach(v => { m.editBuffer=v.toString(); m.handleEditor('equals'); });
+            matDefined = true;
+        };
+        const defineVectors = () => {
+            if (vctDefined) return;
+            enterMode('5');
+            const v = calc.modeHandler;
+            v.defineMode='define'; v.phase='define-select';
+            v.handleDefineSelect('1'); v.handleDefineDim('3');
+            [2,3,-2].forEach(x => { v.editBuffer=x.toString(); v.handleEditor('equals'); });
+            v.defineMode='define'; v.phase='define-select';
+            v.handleDefineSelect('2'); v.handleDefineDim('3');
+            [3,-4,5].forEach(x => { v.editBuffer=x.toString(); v.handleEditor('equals'); });
+            vctDefined = true;
+        };
+        const enterEq = (eqType, degree) => {
+            enterMode('0'); press(eqType); press(degree);
+        };
+        const enterIneq = () => {
+            calc.engine.mode='Inequality'; calc.closeMenu(); calc.clearAll();
+            calc.modeHandler = new InequalityMode(calc); calc.modeHandler.enter();
+        };
+
+        const tests = [
+            // === CALCULATE MODE (1-15) ===
+            () => { enterMode('1'); calc.clearAll(); type('7/8+3/11'); press('equals'); },
+            () => { enterMode('1'); calc.clearAll(); type('3/4'); press('equals'); press('sd'); }, // S⇔D decimal
+            () => { enterMode('1'); calc.clearAll(); type('7/3'); press('equals'); }, // improper fraction
+            () => { enterMode('1'); calc.clearAll(); calc.toggleFractionType(); }, // mixed fraction 2⅓
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('√('); type('24'); press('right'); type('+'); calc.inputFunc('√('); type('150'); press('right'); press('equals'); },
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('√('); type('2'); press('right'); press('equals'); }, // √2
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='RAD'; calc.inputFunc('sin('); type('π/4)'); press('equals'); },
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='RAD'; calc.inputFunc('cos⁻¹('); type('1/2)'); press('equals'); }, // π/3
+            () => { enterMode('1'); calc.clearAll(); type('2'); calc.inputChar('^('); type('3)'); type('+'); type('3'); calc.inputChar('×10^'); type('5'); press('equals'); },
+            () => { enterMode('1'); calc.clearAll(); calc.engine.angleUnit='DEG'; calc.inputFunc('sin('); type('30)'); type('+'); calc.inputFunc('cos('); type('60)'); press('equals'); }, // 1
+            () => { enterMode('1'); calc.clearAll(); calc.inputFunc('ln('); type('e^(1))'); press('equals'); }, // ln(e)=1
+            () => { enterMode('1'); calc.clearAll(); type('2'); calc.inputChar('²'); type('+3'); calc.inputChar('²'); press('equals'); }, // 4+9=13
+            () => { enterMode('1'); calc.clearAll(); type('5!'); press('equals'); }, // 120... actually ! needs reciprocal key. Use simpler: 10÷3
+            () => { enterMode('1'); calc.clearAll(); type('10÷3'); press('equals'); }, // fraction 10/3
+            () => { enterMode('1'); calc.clearAll(); type('1/6+1/3'); press('equals'); }, // 1/2
+
+            // === COMPLEX MODE (16-21) ===
+            () => { enterMode('2'); calc.clearAll(); type('2+3𝒊+5−7𝒊'); press('equals'); }, // 7-4i
+            () => { enterMode('2'); calc.clearAll(); type('(3−2𝒊)(5+6𝒊)'); press('equals'); }, // 27+8i
+            () => { enterMode('2'); calc.clearAll(); calc.engine.angleUnit='DEG'; calc.inputFunc('Arg('); type('1+2𝒊)'); press('equals'); }, // 63.43
+            () => { enterMode('2'); calc.clearAll(); type('2∠330'); press('equals'); }, // √3-i
+            () => { enterMode('2'); calc.clearAll(); type('2+5𝒊▶r∠θ'); press('equals'); }, // polar form
+            () => { enterMode('2'); calc.clearAll(); type('(1+𝒊)'); calc.inputChar('²'); press('equals'); }, // 2i
+
+            // === MATRIX MODE (22-27) ===
+            () => { defineMatrices(); const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputChar('MatA'); type('+'); calc.inputChar('MatB'); press('equals'); },
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputFunc('Det('); calc.inputChar('MatA'); type(')'); press('equals'); }, // 10
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputChar('MatA'); calc.inputChar('⁻¹'); press('equals'); },
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputFunc('Trn('); calc.inputChar('MatA'); type(')'); press('equals'); },
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; type('3'); type('×'); calc.inputChar('MatA'); press('equals'); }, // scalar mul
+            () => { const m=calc.modeHandler; calc.clearAll(); m.phase='calc'; calc.inputFunc('Identity('); type('3)'); press('equals'); },
+
+            // === VECTOR MODE (28-32) ===
+            () => { defineVectors(); const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputChar('VctA'); type('−'); calc.inputChar('VctB'); press('equals'); },
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputChar('VctA'); type('×'); calc.inputChar('VctB'); press('equals'); }, // cross
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputChar('VctA'); calc.inputChar('•'); calc.inputChar('VctB'); press('equals'); }, // dot=-16
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.engine.angleUnit='DEG'; calc.inputFunc('Angle('); calc.inputChar('VctA'); type(','); calc.inputChar('VctB'); type(')'); press('equals'); },
+            () => { const v=calc.modeHandler; calc.clearAll(); v.phase='calc'; calc.inputFunc('UnitV('); calc.inputChar('VctA'); type(')'); press('equals'); },
+
+            // === STATISTICS MODE (33-36) ===
+            () => { enterMode('6'); press('1'); const s=calc.modeHandler; [70.5,74,67,71,71,72,73.5,72,69,71].forEach(v=>{s.editBuffer=v.toString();s.handleEditorKey('equals');}); s.showStatResults(); },
+            () => { const s=calc.modeHandler; s.handleStatResultKey('down'); }, // page 2: sx,n,min,Q1,Med,Q3
+            () => { const s=calc.modeHandler; s.handleStatResultKey('down'); }, // page 3: max(x)
+            () => { const s=calc.modeHandler; s.handleStatResultKey('up'); }, // back to page 2
+
+            // === DISTRIBUTION MODE (37-39) ===
+            () => { enterMode('7'); press('5'); press('2'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='1';d.handleKey('equals');d.editBuffer='6';d.handleKey('equals');d.editBuffer='1/6';d.handleKey('equals');} }, // BinomialCD
+            () => { enterMode('7'); press('3'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='0.9';d.handleKey('equals');d.editBuffer='4';d.handleKey('equals');d.editBuffer='70';d.handleKey('equals');} }, // InvNorm
+            () => { enterMode('7'); press('1'); press('2'); const d=calc.modeHandler; if(d.phase==='input'){d.editBuffer='1.5';d.handleKey('equals');d.editBuffer='1';d.handleKey('equals');d.editBuffer='0';d.handleKey('equals');} }, // NormalPD
+
+            // === TABLE MODE (40-42) ===
+            () => { enterMode('9'); const t=calc.modeHandler; t.editBuffer='x\u00d7(20\u2212x)\u00d7(15\u2212x)'; t.handleKey('equals'); t.editBuffer='1';t.handleKey('equals'); t.editBuffer='7';t.handleKey('equals'); t.editBuffer='1';t.handleKey('equals'); },
+            () => { const t=calc.modeHandler; t.handleKey('down');t.handleKey('down');t.handleKey('down');t.handleKey('down');t.handleKey('down'); }, // scroll to row 6
+            () => { const t=calc.modeHandler; t.handleKey('ac'); }, // show Table Range
+
+            // === EQUATION MODE (43-47) ===
+            () => { enterEq('1','1'); const e=calc.modeHandler; [2,1,5,-4,6,12].forEach(v=>{e.editBuffer=v.toString();e.handleKey('equals');}); }, // 2x+y=5,-4x+6y=12 → x=9/8
+            () => { const e=calc.modeHandler; if(e.solutions&&e.solutions.length>1) e.handleKey('down'); }, // y=11/4
+            () => { enterEq('2','2'); const e=calc.modeHandler; [1,4,1,-6].forEach(v=>{e.editBuffer=v.toString();e.handleKey('equals');}); }, // cubic roots
+            () => { enterEq('2','1'); const e=calc.modeHandler; [1,2,3].forEach(v=>{e.editBuffer=v.toString();e.handleKey('equals');}); }, // complex roots -1±√2i
+            () => { const e=calc.modeHandler; if(e.solutions&&e.solutions.length>1) e.handleKey('down'); }, // x2
+
+            // === INEQUALITY MODE (48-49) ===
+            () => { enterIneq(); press('2'); press('2'); const q=calc.modeHandler; [1,4,1,-6].forEach(v=>{q.editBuffer=v.toString();q.handleKey('equals');}); }, // x<-3, -2<x<1
+            () => { enterIneq(); press('1'); press('1'); const q=calc.modeHandler; [1,-5,6].forEach(v=>{q.editBuffer=v.toString();q.handleKey('equals');}); }, // x²-5x+6>0
+
+            // === SOLVE MODE (50) ===
+            () => { enterMode('1'); calc.clearAll(); type('x²−4'); calc.openSolve(); calc.solveEditBuffer='1'; calc.saveCurrentSolveVar(); calc.executeSolve(); },
+        ];
+
+        debugBtn.addEventListener('click', () => {
+            testIdx++;
+            if (testIdx >= tests.length) testIdx = 0;
+            const n = testIdx + 1;
+            showLabel(n);
+            try {
+                tests[testIdx]();
+            } catch (e) {
+                console.error(`Test #${n} error:`, e);
+                calc.displayResultEl.textContent = `#${n} Error: ${e.message}`;
+            }
+        });
+    }
 });

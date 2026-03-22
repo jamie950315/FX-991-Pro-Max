@@ -29,6 +29,9 @@ class CalcEngine {
         this.decimalMark = '.';
         // Complex format
         this.complexFormat = 'a+bi';
+        // Statistics/Table settings (persisted across mode changes)
+        this.statFrequency = false;
+        this.tableUseGx = false;
         // Last raw result for toggling
         this.lastRawResult = null;
         this.lastDisplayFormat = null;
@@ -994,6 +997,8 @@ class CalcEngine {
         this.engineerSymbol = false;
         this.digitSeparator = false;
         this.complexFormat = 'a+bi';
+        this.statFrequency = false;
+        this.tableUseGx = false;
     }
 
     clearMemory() {
